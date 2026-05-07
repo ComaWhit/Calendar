@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Акты Эксперт Юрист</title>
+  <link rel="icon" type="image/png" href="images/logo.png" />
+  <link rel="stylesheet" href="css/style.css?v=6" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body>
+
+  <!-- ===== LOGIN SCREEN ===== -->
+  <div class="login-overlay" id="login-overlay">
+    <div class="login-box">
+      <div class="login-logo">
+        <img src="images/logo.png" alt="Логотип" class="login-logo-img" />
+        <div class="login-logo-text">
+          <div class="login-title">Акты Эксперт Юрист</div>
+          <div class="login-subtitle">Система учёта актов</div>
+        </div>
+      </div>
+
+      <div class="login-roles">
+        <button class="role-btn active" data-role="admin">
+          <i class="fa fa-shield-halved"></i>
+          <span>Администратор</span>
+        </button>
+        <button class="role-btn" data-role="employee">
+          <i class="fa fa-user"></i>
+          <span>Сотрудник</span>
+        </button>
+      </div>
+
+      <form id="form-login" autocomplete="on">
+        <input type="text" name="username" autocomplete="username" style="display:none" />
+        <div class="login-field">
+          <label for="login-password">Пароль</label>
+          <div class="login-input-wrap">
+            <i class="fa fa-lock"></i>
+            <input type="password" id="login-password" placeholder="Введите пароль..." autocomplete="current-password" required />
+            <button type="button" class="login-eye-btn" id="login-eye">
+              <i class="fa fa-eye"></i>
+            </button>
+          </div>
+          <div class="login-error hidden" id="login-error">
+            <i class="fa fa-circle-xmark"></i> Неверный пароль
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary login-btn">
+          <i class="fa fa-right-to-bracket"></i> Войти
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== HEADER ===== -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-logo">
+                <img src="images/logo.png?v=2" alt="Акты Эксперт Юрист" class="header-logo-img" />
+        <span>Акты Эксперт Юрист</span>
+      </div>
+
+      <!-- Вкладки навигации -->
+      <nav class="header-tabs">
+        <button class="tab-btn active" data-tab="calendar">
+          <i class="fa fa-calendar-days"></i> Календарь
+        </button>
+        <button class="tab-btn" data-tab="report">
+          <i class="fa fa-chart-bar"></i> Отчёты
+        </button>
+        <button class="tab-btn" data-tab="persons">
+          <i class="fa fa-users"></i> Сотрудники
+        </button>
+      </nav>
+
+      <div class="header-actions">
+        <div class="header-user-info" id="header-user-info"></div>
+        <button class="btn btn-ghost btn-logout" id="btn-logout" title="Выйти">
+          <i class="fa fa-right-from-bracket"></i> Выйти
+        </button>
+        <button class="btn btn-success" id="btn-sign-act">
+          <i class="fa fa-pen-nib"></i> Подписать акт
+        </button>
+        <button class="btn btn-primary" id="btn-add-act">
+          <i class="fa fa-plus"></i> Создать акт
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== VIEW: CALENDAR ===== -->
+  <main class="app-main view-calendar" id="view-calendar">
+
+    <!-- Legend + Filter bar -->
+    <div class="legend">
+      <span class="legend-item"><span class="dot dot-created"></span> Создан</span>
+      <span class="legend-item"><span class="dot dot-signed"></span> Подписан</span>
+      <span class="legend-item"><span class="dot dot-both"></span> Создан и подписан</span>
+      <div class="legend-filter">
+        <i class="fa fa-user-filter"></i>
+        <select id="cal-person-filter" class="filter-select">
+          <option value="">Все сотрудники</option>
+        </select>
+        <button class="filter-clear-btn hidden" id="cal-filter-clear" title="Сбросить фильтр">
+          <i class="fa fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Calendar navigation -->
+    <section class="calendar-section">
+      <div class="calendar-nav">
+        <button class="nav-btn" id="btn-prev"><i class="fa fa-chevron-left"></i></button>
+        <h2 class="calendar-title" id="calendar-title">Апрель 2026</h2>
+        <button class="nav-btn" id="btn-next"><i class="fa fa-chevron-right"></i></button>
+        <button class="btn btn-outline btn-today" id="btn-today">Сегодня</button>
+      </div>
+      <div class="calendar-wrapper">
+        <div class="calendar-weekdays">
+          <span>Пн</span><span>Вт</span><span>Ср</span>
+          <span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+      </div>
+    </section>
+
+    <!-- Day detail panel -->
+    <aside class="day-panel" id="day-panel">
+      <div class="day-panel-header">
+        <h3 id="day-panel-title">Выберите день</h3>
+        <button class="close-btn" id="day-panel-close"><i class="fa fa-xmark"></i></button>
+      </div>
+      <div class="day-panel-body" id="day-panel-body">
+        <p class="empty-state">Нажмите на любой день, чтобы увидеть акты.</p>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ===== VIEW: REPORT ===== -->
+  <main class="app-main view-report hidden" id="view-report">
+    <div class="report-container">
+
+      <!-- Report controls -->
+      <div class="report-controls">
+        <div class="report-period-tabs">
+          <button class="period-btn active" data-period="week">
+            <i class="fa fa-calendar-week"></i> Неделя
+          </button>
+          <button class="period-btn" data-period="month">
+            <i class="fa fa-calendar"></i> Месяц
+          </button>
+          <button class="period-btn" data-period="custom">
+            <i class="fa fa-sliders"></i> Период
+          </button>
+        </div>
+
+        <div class="report-nav" id="report-nav-week">
+          <button class="nav-btn" id="rpt-prev"><i class="fa fa-chevron-left"></i></button>
+          <span class="report-range-label" id="report-range-label">—</span>
+          <button class="nav-btn" id="rpt-next"><i class="fa fa-chevron-right"></i></button>
+          <button class="btn btn-outline btn-sm" id="rpt-today">Текущая</button>
+        </div>
+
+        <div class="report-custom-range hidden" id="report-custom-range">
+          <div class="custom-range-inputs">
+            <div class="range-field">
+              <label>С</label>
+              <input type="date" id="rpt-date-from" />
+            </div>
+            <div class="range-field">
+              <label>По</label>
+              <input type="date" id="rpt-date-to" />
+            </div>
+            <button class="btn btn-primary btn-sm" id="rpt-apply">
+              <i class="fa fa-search"></i> Применить
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter by person -->
+        <div class="report-person-filter">
+          <i class="fa fa-user"></i>
+          <select id="rpt-person-filter" class="filter-select">
+            <option value="">Все сотрудники</option>
+          </select>
+          <button class="filter-clear-btn hidden" id="rpt-filter-clear" title="Сбросить фильтр">
+            <i class="fa fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- Export PDF -->
+        <button class="btn btn-pdf" id="btn-export-pdf">
+          <i class="fa fa-file-pdf"></i> Скачать PDF
+        </button>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="report-summary" id="report-summary">
+        <div class="summary-card summary-created">
+          <div class="summary-icon"><i class="fa fa-file-pen"></i></div>
+          <div class="summary-info">
+            <div class="summary-num" id="s-created">0</div>
+            <div class="summary-label">Создано актов</div>
+          </div>
+        </div>
+        <div class="summary-card summary-signed">
+          <div class="summary-icon"><i class="fa fa-check-circle"></i></div>
+          <div class="summary-info">
+            <div class="summary-num" id="s-signed">0</div>
+            <div class="summary-label">Подписано актов</div>
+          </div>
+        </div>
+        <div class="summary-card summary-pending">
+          <div class="summary-icon"><i class="fa fa-clock"></i></div>
+          <div class="summary-info">
+            <div class="summary-num" id="s-pending">0</div>
+            <div class="summary-label">Ожидают подписания</div>
+          </div>
+        </div>
+        <div class="summary-card summary-total">
+          <div class="summary-icon"><i class="fa fa-layer-group"></i></div>
+          <div class="summary-info">
+            <div class="summary-num" id="s-total">0</div>
+            <div class="summary-label">Всего за период</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Report tables -->
+      <div class="report-tables">
+
+        <!-- Created acts table -->
+        <div class="report-table-block">
+          <div class="report-table-header">
+            <h3><i class="fa fa-file-circle-plus" style="color:var(--clr-created)"></i> Созданные акты</h3>
+            <span class="table-count" id="count-created">0</span>
+          </div>
+          <div class="table-wrap">
+            <table class="report-table" id="table-created">
+              <thead>
+                <tr>
+                  <th>№ Акта</th>
+                  <th>ФИО подписанта</th>
+                  <th>Создан кем</th>
+                  <th>Дата создания</th>
+                  <th>Сумма</th>
+                  <th>Статус</th>
+                  <th>Документ</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-created"></tbody>
+            </table>
+            <div class="table-empty hidden" id="empty-created">
+              <i class="fa fa-folder-open"></i> Нет созданных актов за период
+            </div>
+          </div>
+        </div>
+
+        <!-- Signed acts table -->
+        <div class="report-table-block">
+          <div class="report-table-header">
+            <h3><i class="fa fa-signature" style="color:var(--clr-signed)"></i> Подписанные акты</h3>
+            <span class="table-count count-green" id="count-signed">0</span>
+          </div>
+          <div class="table-wrap">
+            <table class="report-table" id="table-signed">
+              <thead>
+                <tr>
+                  <th>№ Акта</th>
+                  <th>ФИО подписанта</th>
+                  <th>Создан кем</th>
+                  <th>Дата создания</th>
+                  <th>Сумма</th>
+                  <th>Принят кем</th>
+                  <th>Дата подписания</th>
+                  <th>Документ</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-signed"></tbody>
+            </table>
+            <div class="table-empty hidden" id="empty-signed">
+              <i class="fa fa-folder-open"></i> Нет подписанных актов за период
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- ===== VIEW: PERSONS ===== -->
+  <main class="app-main view-persons hidden" id="view-persons">
+    <div class="persons-container">
+
+      <!-- toolbar -->
+      <div class="persons-toolbar">
+        <div class="persons-toolbar-left">
+          <h2 class="persons-title"><i class="fa fa-users"></i> Справочник сотрудников</h2>
+          <span class="persons-count-badge" id="persons-count">0</span>
+        </div>
+        <div class="persons-toolbar-right">
+          <div class="persons-search-wrap">
+            <i class="fa fa-magnifying-glass"></i>
+            <input type="text" id="persons-search" placeholder="Поиск по имени, должности, отделу..." />
+          </div>
+          <button class="btn btn-primary" id="btn-add-person">
+            <i class="fa fa-user-plus"></i> Добавить сотрудника
+          </button>
+        </div>
+      </div>
+
+      <!-- persons grid -->
+      <div class="persons-grid" id="persons-grid"></div>
+
+    </div>
+  </main>
+
+  <!-- ===== MODAL: Добавить / Редактировать сотрудника ===== -->
+  <div class="modal-overlay" id="modal-person" aria-hidden="true">
+    <div class="modal" role="dialog" aria-labelledby="modal-person-title">
+      <div class="modal-header">
+        <h3 id="modal-person-title"><i class="fa fa-user-pen"></i> Сотрудник</h3>
+        <button class="close-btn" data-close="modal-person"><i class="fa fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-person">
+          <input type="hidden" id="fp-id" />
+          <div class="form-row">
+            <label for="fp-name">ФИО <span class="req">*</span></label>
+            <input type="text" id="fp-name" placeholder="Например: Иванов А.П." required />
+          </div>
+          <div class="form-row">
+            <label for="fp-position">Должность</label>
+            <input type="text" id="fp-position" placeholder="Например: Главный инженер" />
+          </div>
+          <div class="form-row">
+            <label for="fp-department">Отдел / подразделение</label>
+            <input type="text" id="fp-department" placeholder="Например: Технический отдел" />
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-ghost" data-close="modal-person">Отмена</button>
+            <button type="submit" class="btn btn-primary" id="btn-person-save">
+              <i class="fa fa-save"></i> Сохранить
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: Создать акт ===== -->
+  <div class="modal-overlay" id="modal-create" aria-hidden="true">
+    <div class="modal" role="dialog" aria-labelledby="modal-create-title">
+      <div class="modal-header">
+        <h3 id="modal-create-title"><i class="fa fa-file-circle-plus"></i> Создать новый акт</h3>
+        <button class="close-btn" data-close="modal-create"><i class="fa fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-create">
+          <div class="form-row">
+            <label for="f-act-number">Номер акта</label>
+            <input type="text" id="f-act-number" placeholder="Например: АКТ-140" />
+          </div>
+          <div class="form-row">
+            <label for="f-signatory">ФИО подписанта <span class="req">*</span></label>
+            <input type="text" id="f-signatory" placeholder="Введите ФИО клиента / подписанта" required autocomplete="off" />
+          </div>
+          <div class="form-row">
+            <label for="f-description">Описание</label>
+            <textarea id="f-description" rows="3" placeholder="Подробное описание..."></textarea>
+          </div>
+          <div class="form-row">
+            <label for="f-created-by">Создан кем <span class="req">*</span></label>
+            <div class="select-or-input-wrap">
+              <select id="f-created-by-select" class="select-person">
+                <option value="">— выбрать из списка —</option>
+              </select>
+              <input type="text" id="f-created-by" placeholder="или введите ФИО / должность" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="f-amount">
+              <i class="fa fa-ruble-sign" style="color:var(--clr-primary)"></i>
+              Сумма акта
+            </label>
+            <div class="amount-input-wrap">
+              <input type="number" id="f-amount" placeholder="0.00" min="0" step="0.01" />
+              <span class="amount-currency">₽</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="f-act-url">
+              <i class="fa fa-link" style="color:var(--clr-primary)"></i>
+              Ссылка на акт <span class="req">*</span>
+            </label>
+            <div class="url-input-wrap">
+              <input type="url" id="f-act-url"
+                placeholder="https://docs.example.com/act-140.pdf"
+                autocomplete="off" required />
+              <button type="button" class="url-check-btn" id="btn-check-act-url"
+                title="Открыть ссылку в новой вкладке" tabindex="-1">
+                <i class="fa fa-arrow-up-right-from-square"></i>
+              </button>
+            </div>
+            <span class="field-hint">Вставьте URL на документ, облачное хранилище или скан акта</span>
+          </div>
+          <div class="form-row">
+            <label for="f-created-date">Дата создания <span class="req">*</span></label>
+            <input type="date" id="f-created-date" required />
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-ghost" data-close="modal-create">Отмена</button>
+            <button type="submit" class="btn btn-primary"><i class="fa fa-save"></i> Создать</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: Подписать акт ===== -->
+  <div class="modal-overlay" id="modal-sign" aria-hidden="true">
+    <div class="modal modal-wide" role="dialog" aria-labelledby="modal-sign-title">
+      <div class="modal-header">
+        <h3 id="modal-sign-title"><i class="fa fa-pen-nib"></i> Подписать акт</h3>
+        <button class="close-btn" data-close="modal-sign"><i class="fa fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-sign">
+          <input type="hidden" id="f-sign-act-id" />
+          <div class="form-row">
+            <label>Выберите акт для подписания <span class="req">*</span></label>
+            <div class="act-search-wrap">
+              <input type="text" id="f-sign-search" placeholder="Поиск по номеру, ФИО подписанта, создателю..." autocomplete="off" />
+              <div class="act-dropdown" id="act-dropdown"></div>
+            </div>
+            <div class="selected-act-card" id="selected-act-card" style="display:none"></div>
+          </div>
+          <div class="form-row">
+            <label for="f-signed-by">Принят кем <span class="req">*</span></label>
+            <div class="select-or-input-wrap">
+              <select id="f-signed-by-select" class="select-person">
+                <option value="">— выбрать из списка —</option>
+              </select>
+              <input type="text" id="f-signed-by" placeholder="или введите ФИО / должность" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="f-signed-url">
+              <i class="fa fa-link" style="color:var(--clr-primary)"></i>
+              Ссылка на акт
+            </label>
+            <div class="url-input-wrap">
+              <input type="url" id="f-signed-url"
+                placeholder="https://docs.example.com/act-140-signed.pdf"
+                autocomplete="off" />
+              <button type="button" class="url-check-btn" id="btn-check-url"
+                title="Открыть ссылку в новой вкладке" tabindex="-1">
+                <i class="fa fa-arrow-up-right-from-square"></i>
+              </button>
+            </div>
+            <span class="field-hint">Вставьте URL на документ, облачное хранилище или электронную подпись</span>
+          </div>
+          <div class="form-info-banner">
+            <i class="fa fa-circle-info"></i>
+            Дата подписания — <strong id="f-signed-date-display"></strong> (сегодня)
+          </div>
+          <input type="hidden" id="f-signed-date" />
+          <div class="form-actions">
+            <button type="button" class="btn btn-ghost" data-close="modal-sign">Отмена</button>
+            <button type="submit" class="btn btn-success" id="btn-submit-sign" disabled>
+              <i class="fa fa-check"></i> Подписать
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: Детали акта ===== -->
+  <div class="modal-overlay" id="modal-detail" aria-hidden="true">
+    <div class="modal" role="dialog" aria-labelledby="modal-detail-title">
+      <div class="modal-header">
+        <h3 id="modal-detail-title"><i class="fa fa-file-lines"></i> Информация об акте</h3>
+        <button class="close-btn" data-close="modal-detail"><i class="fa fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" id="modal-detail-body"></div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+  <script src="js/app.js?v=8"></script>
+</body>
+</html>
