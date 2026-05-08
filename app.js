@@ -37,7 +37,12 @@ const AUTH = {
 };
 
 // ── Login screen logic ─────────────────────────
-(function initLogin() {
+let _loginInitDone = false;
+
+function initLogin() {
+  if (_loginInitDone) return;
+  _loginInitDone = true;
+
   const overlay   = document.getElementById('login-overlay');
   const form      = document.getElementById('form-login');
   const errorEl   = document.getElementById('login-error');
@@ -45,6 +50,10 @@ const AUTH = {
   const pwdInput  = document.getElementById('login-password');
   const roleBtns  = document.querySelectorAll('.role-btn');
   let selectedRole = 'admin';
+
+  // Убираем action у формы
+  form.removeAttribute('onsubmit');
+  form.action = 'javascript:void(0);';
 
   // Если уже залогинен — скрыть экран входа
   if (AUTH.isLoggedIn()) {
@@ -54,7 +63,17 @@ const AUTH = {
 
   // Переключение роли
   roleBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      roleBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedRole = btn.dataset.role;
+      errorEl.classList.add('hidden');
+      pwdInput.focus();
+    });
+    btn.addEventListener('touchend', (e) => {
+      e.preventDefault();
       roleBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       selectedRole = btn.dataset.role;
@@ -63,21 +82,19 @@ const AUTH = {
   });
 
   // Показать/скрыть пароль
-  eyeBtn.addEventListener('click', () => {
+  eyeBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     const isText = pwdInput.type === 'text';
     pwdInput.type = isText ? 'password' : 'text';
     eyeBtn.querySelector('i').className = isText ? 'fa fa-eye' : 'fa fa-eye-slash';
   });
 
-  // Сабмит формы
-  form.addEventListener('submit', e => {
-    e.preventDefault();
+  // Функция попытки входа
+  function tryLogin() {
     const pwd = pwdInput.value;
     if (AUTH.login(selectedRole, pwd)) {
-      overlay.classList.add('login-fade-out');
-      overlay.addEventListener('animationend', () => {
-        overlay.style.display = 'none';
-      }, { once: true });
+      overlay.style.display = 'none';
       applyRole(selectedRole);
       loadActs();
     } else {
@@ -85,14 +102,39 @@ const AUTH = {
       pwdInput.value = '';
       pwdInput.focus();
     }
+  }
+
+  // Сабмит формы
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    tryLogin();
+    return false;
   });
+
+  // Enter в поле пароля
+  pwdInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      tryLogin();
+    }
+  });
+
+  // Кнопка Войти — отдельный обработчик на случай если submit не срабатывает
+  const loginBtn = form.querySelector('.login-btn');
+  if (loginBtn) {
+    loginBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      tryLogin();
+    });
+  }
 
   // Выход
   document.getElementById('btn-logout').addEventListener('click', () => {
     AUTH.logout();
     location.reload();
   });
-})();
+}
 
 // ── Apply role restrictions ────────────────────
 function applyRole(role) {
@@ -113,79 +155,52 @@ function applyRole(role) {
     : `<span class="user-role-badge role-employee"><i class="fa fa-user"></i> Сотрудник</span>`;
 }
 
-// ── Supabase config ────────────────────────────
-const SB_URL = 'https://qubsidfyphundmhtsfkq.supabase.co';
-const SB_KEY = 'sb_publishable_wM0D_q_KjXwri9pgCzT-tQ_l-zglLhR';
-const SB_HEADERS = {
-  'Content-Type':  'application/json',
-  'apikey':        SB_KEY,
-  'Authorization': `Bearer ${SB_KEY}`,
-  'Prefer':        'return=representation',
-};
+// ── API config ─────────────────────────────────
+const API_BASE = '/api.php';
 
-// Базовый fetch для Supabase
-async function sbFetch(path, options = {}) {
-  const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+async function apiFetch(path, options = {}) {
+  const r = await fetch(`${API_BASE}/${path}`, {
     ...options,
-    headers: { ...SB_HEADERS, ...(options.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   });
+  if (r.status === 204) return null;
   if (!r.ok) {
     let msg = `Ошибка ${r.status}`;
-    try { const e = await r.json(); msg = e.message || e.error || msg; } catch {}
+    try { const e = await r.json(); msg = e.error || msg; } catch {}
     throw new Error(msg);
   }
-  // DELETE возвращает 204 без тела
-  if (r.status === 204) return null;
   return r.json();
 }
 
 // ── Persons API ────────────────────────────────
 const PAPI = {
   async list() {
-    const data = await sbFetch('persons?select=*&order=name.asc&limit=500');
-    return data || [];
+    return (await apiFetch('persons')) || [];
   },
   async create(data) {
-    const rows = await sbFetch('persons', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return Array.isArray(rows) ? rows[0] : rows;
+    return apiFetch('persons', { method: 'POST', body: JSON.stringify(data) });
   },
   async update(id, data) {
-    const rows = await sbFetch(`persons?id=eq.${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-    return Array.isArray(rows) ? rows[0] : rows;
+    return apiFetch(`persons/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
   },
   async remove(id) {
-    await sbFetch(`persons?id=eq.${id}`, { method: 'DELETE' });
+    await apiFetch(`persons/${id}`, { method: 'DELETE' });
   },
 };
 
-// ── API helpers ────────────────────────────────
+// ── Acts API ───────────────────────────────────
 const API = {
   async list() {
-    const data = await sbFetch('acts?select=*&order=created_date.desc&limit=500');
-    return data || [];
+    return (await apiFetch('acts')) || [];
   },
   async create(data) {
-    const rows = await sbFetch('acts', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return Array.isArray(rows) ? rows[0] : rows;
+    return apiFetch('acts', { method: 'POST', body: JSON.stringify(data) });
   },
   async update(id, data) {
-    const rows = await sbFetch(`acts?id=eq.${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-    return Array.isArray(rows) ? rows[0] : rows;
+    return apiFetch(`acts/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
   },
   async remove(id) {
-    await sbFetch(`acts?id=eq.${id}`, { method: 'DELETE' });
+    await apiFetch(`acts/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -623,6 +638,55 @@ function buildActCard(act, role) {
   return card;
 }
 
+// ── Print act ────────────────────────────────────
+function printAct(act) {
+  const isSigned = act.status === 'signed';
+  const html = `
+    <!DOCTYPE html><html lang="ru"><head>
+    <meta charset="UTF-8">
+    <title>Акт ${act.act_number || act.id}</title>
+    <style>
+      body { font-family: Arial, sans-serif; color: #111; margin: 0; padding: 24px; font-size: 14px; }
+      h1 { font-size: 18px; margin-bottom: 16px; color: #3b3393; }
+      table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+      td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+      td:first-child { font-weight: 600; color: #64748b; width: 200px; white-space: nowrap; }
+      .status-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; }
+      .signed  { background: #dcfce7; color: #166534; }
+      .created { background: #ede9fe; color: #3b3393; }
+      .footer { margin-top: 32px; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+      @media print { body { padding: 10px; } }
+    </style>
+    </head><body>
+    <h1>📄 ${act.act_number ? 'Акт ' + act.act_number : 'Акт (без номера)'}</h1>
+    <table>
+      ${act.act_number  ? `<tr><td>Номер акта</td><td>${act.act_number}</td></tr>` : ''}
+      ${act.signatory   ? `<tr><td>ФИО подписанта</td><td>${act.signatory}</td></tr>` : ''}
+      ${act.description ? `<tr><td>Описание</td><td>${act.description}</td></tr>` : ''}
+      ${act.amount      ? `<tr><td>Сумма акта</td><td>${formatAmount(act.amount)}</td></tr>` : ''}
+      <tr><td>Создан кем</td><td>${act.created_by || '—'}</td></tr>
+      <tr><td>Дата создания</td><td>${toLocale(act.created_date)}</td></tr>
+      ${act.act_url     ? `<tr><td>Ссылка на акт</td><td>${act.act_url}</td></tr>` : ''}
+      <tr><td>Статус</td><td>
+        <span class="status-badge ${isSigned ? 'signed' : 'created'}">${isSigned ? 'Подписан' : 'Не подписан'}</span>
+      </td></tr>
+      ${isSigned ? `
+        <tr><td>Принят кем</td><td>${act.signed_by || '—'}</td></tr>
+        <tr><td>Дата подписания</td><td>${toLocale(act.signed_date)}</td></tr>
+        ${act.signed_url ? `<tr><td>Ссылка (подписанный)</td><td>${act.signed_url}</td></tr>` : ''}
+      ` : ''}
+    </table>
+    <div class="footer">Распечатано: ${new Date().toLocaleString('ru-RU')} | Акты Эксперт Юрист</div>
+    </body></html>`;
+
+  const win = window.open('', '_blank', 'width=700,height=600');
+  if (!win) { toast('Разрешите всплывающие окна для печати', 'error'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 400);
+}
+
 // ── Detail modal ───────────────────────────────
 function openDetailModal(act) {
   const body = document.getElementById('modal-detail-body');
@@ -674,9 +738,19 @@ function openDetailModal(act) {
         <i class="fa fa-pen-nib"></i> Подписать этот акт
       </button>
     </div>`}
+    <div class="detail-actions-footer">
+      <button class="btn btn-outline btn-sm" id="detail-print-btn">
+        <i class="fa fa-print"></i> Распечатать
+      </button>
+    </div>
   `;
   const sb = body.querySelector('#detail-sign-btn');
   if (sb) sb.addEventListener('click', () => { closeModal('modal-detail'); openSignModalWithAct(act); });
+
+  // Кнопка «Распечатать»
+  const pb = body.querySelector('#detail-print-btn');
+  if (pb) pb.addEventListener('click', () => printAct(act));
+
   openModal('modal-detail');
 }
 
@@ -935,6 +1009,7 @@ async function loadActs() {
     ]);
     fillPersonFilterSelects();
     renderCalendar();
+    updateNotifyBadge();
     // Если открыта вкладка отчётов — перерисовать после загрузки данных
     if (!document.getElementById('view-report').classList.contains('hidden')) {
       renderReport();
@@ -1039,6 +1114,103 @@ function formatRangeLabel(from, to) {
   return `${parseInt(fd)} ${MONTHS_GEN[parseInt(fm)-1]} ${fy} — ${parseInt(td)} ${MONTHS_GEN[parseInt(tm)-1]} ${ty}`;
 }
 
+// ── Chart instances (хранятся, чтобы уничтожать перед перерисовкой) ───────
+let _chartBar = null;
+let _chartDoughnut = null;
+
+// ── Render Charts ───────────────────────────────
+function renderCharts(createdActs, signedActs) {
+  const pendingActs = createdActs.filter(a => a.status !== 'signed');
+
+  // ── Бар-чарт: созданные и подписанные по дням ─
+  const ctxBar = document.getElementById('chart-bar');
+  if (ctxBar) {
+    // Собираем все уникальные даты
+    const datesSet = new Set();
+    createdActs.forEach(a => { if (a.created_date) datesSet.add(toDateKey(a.created_date)); });
+    signedActs.forEach(a => { if (a.signed_date) datesSet.add(toDateKey(a.signed_date)); });
+    const dates = [...datesSet].sort();
+
+    const createdByDay = dates.map(d => createdActs.filter(a => toDateKey(a.created_date) === d).length);
+    const signedByDay  = dates.map(d => signedActs.filter(a => toDateKey(a.signed_date) === d).length);
+
+    const labels = dates.map(d => {
+      const [y, m, day] = d.split('-');
+      return `${parseInt(day)}.${parseInt(m)}`;
+    });
+
+    if (_chartBar) { _chartBar.destroy(); _chartBar = null; }
+    _chartBar = new Chart(ctxBar, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Создано',
+            data: createdByDay,
+            backgroundColor: 'rgba(59,51,147,0.75)',
+            borderRadius: 5,
+            borderSkipped: false,
+          },
+          {
+            label: 'Подписано',
+            data: signedByDay,
+            backgroundColor: 'rgba(34,197,94,0.75)',
+            borderRadius: 5,
+            borderSkipped: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { font: { family: 'Inter', size: 12 }, boxWidth: 14 } },
+          tooltip: { mode: 'index', intersect: false },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 } } },
+          y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(0,0,0,.05)' } },
+        },
+      },
+    });
+  }
+
+  // ── Пончик: статус актов ───────────────────────
+  const ctxD = document.getElementById('chart-doughnut');
+  if (ctxD) {
+    if (_chartDoughnut) { _chartDoughnut.destroy(); _chartDoughnut = null; }
+    const signed  = signedActs.length;
+    const pending = pendingActs.length;
+    _chartDoughnut = new Chart(ctxD, {
+      type: 'doughnut',
+      data: {
+        labels: ['Подписано', 'Ожидают подписания'],
+        datasets: [{
+          data: [signed, pending],
+          backgroundColor: ['rgba(34,197,94,0.8)', 'rgba(245,158,11,0.8)'],
+          borderColor:     ['#22c55e', '#f59e0b'],
+          borderWidth: 2,
+          hoverOffset: 8,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '68%',
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 12 }, boxWidth: 14, padding: 14 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.label}: ${ctx.parsed}`
+            }
+          },
+        },
+      },
+    });
+  }
+}
+
 // ── Main render ─────────────────────────────────
 function renderReport() {
   const { from, to } = getReportRange();
@@ -1075,6 +1247,9 @@ function renderReport() {
 
   document.getElementById('count-created').textContent = createdActs.length;
   document.getElementById('count-signed').textContent  = signedActs.length;
+
+  // Графики
+  renderCharts(createdActs, signedActs);
 
   // Суммы
   const totalCreatedAmount = createdActs.reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
@@ -1543,5 +1718,250 @@ function exportReportPdf() {
     btn.disabled = false;
     btn.innerHTML = '<i class="fa fa-file-pdf"></i> Скачать PDF';
   });
+}
+
+/* =============================================
+   УВЕДОМЛЕНИЯ — неподписанные акты
+   ============================================= */
+
+const NOTIFY_DAYS = 3; // считать «просроченным» если создан более N дней назад
+
+function getOverdueActs() {
+  const now = new Date();
+  return state.acts.filter(a => {
+    if (a.status === 'signed') return false;
+    if (!a.created_date) return true;
+    const created = new Date(toDateKey(a.created_date));
+    const diff = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+    return diff >= NOTIFY_DAYS;
+  }).sort((a, b) => (a.created_date || '').localeCompare(b.created_date || ''));
+}
+
+function updateNotifyBadge() {
+  const overdue = getOverdueActs();
+  const badge = document.getElementById('notify-badge');
+  const btn   = document.getElementById('btn-notify');
+  if (!badge || !btn) return;
+  if (overdue.length > 0) {
+    badge.textContent = overdue.length > 99 ? '99+' : overdue.length;
+    badge.classList.remove('hidden');
+    btn.classList.add('has-notify');
+  } else {
+    badge.classList.add('hidden');
+    btn.classList.remove('has-notify');
+  }
+}
+
+function renderNotifyPanel() {
+  const body    = document.getElementById('notify-panel-body');
+  const overdue = getOverdueActs();
+
+  if (!overdue.length) {
+    body.innerHTML = `
+      <div class="notify-empty">
+        <i class="fa fa-check-circle"></i>
+        <p>Все акты подписаны!</p>
+      </div>`;
+    return;
+  }
+
+  body.innerHTML = '';
+  const now = new Date();
+
+  overdue.forEach(act => {
+    const created = new Date(toDateKey(act.created_date));
+    const diff = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+    const urgency = diff >= 42 ? 'urgent' : diff >= 21 ? 'warning' : 'normal';
+
+    const item = document.createElement('div');
+    item.className = `notify-item notify-${urgency}`;
+    item.innerHTML = `
+      <div class="notify-item-header">
+        ${act.act_number ? `<span class="notify-act-num">${act.act_number}</span>` : ''}
+        <span class="notify-days-badge">
+          <i class="fa fa-clock"></i> ${diff} ${dayWord(diff)}
+        </span>
+      </div>
+      <div class="notify-act-title">${act.signatory || '<span style="color:var(--clr-muted);font-style:italic">Подписант не указан</span>'}</div>
+      <div class="notify-act-meta">
+        <span><i class="fa fa-user" style="color:var(--clr-created)"></i> ${act.created_by || '—'}</span>
+        <span><i class="fa fa-calendar"></i> Создан ${toLocale(act.created_date)}</span>
+        ${act.amount ? `<span><i class="fa fa-ruble-sign"></i> ${formatAmount(act.amount)}</span>` : ''}
+      </div>
+      <div class="notify-item-actions">
+        ${act.act_url ? `<a href="${act.act_url}" target="_blank" rel="noopener" class="btn btn-outline btn-xs">
+          <i class="fa fa-file-lines"></i> Открыть акт
+        </a>` : ''}
+        <button class="btn btn-success btn-xs" data-sign-id="${act.id}">
+          <i class="fa fa-pen-nib"></i> Подписать
+        </button>
+      </div>
+    `;
+
+    item.querySelector('[data-sign-id]').addEventListener('click', () => {
+      closeNotifyPanel();
+      openSignModalWithAct(act);
+    });
+
+    body.appendChild(item);
+  });
+}
+
+function dayWord(n) {
+  const abs = Math.abs(n);
+  if (abs % 10 === 1 && abs % 100 !== 11) return 'день';
+  if ([2,3,4].includes(abs % 10) && ![12,13,14].includes(abs % 100)) return 'дня';
+  return 'дней';
+}
+
+function openNotifyPanel() {
+  renderNotifyPanel();
+  document.getElementById('notify-panel').classList.add('active');
+  document.getElementById('notify-overlay').classList.add('active');
+}
+
+function closeNotifyPanel() {
+  document.getElementById('notify-panel').classList.remove('active');
+  document.getElementById('notify-overlay').classList.remove('active');
+}
+
+document.getElementById('btn-notify').addEventListener('click', () => {
+  const panel = document.getElementById('notify-panel');
+  if (panel.classList.contains('active')) {
+    closeNotifyPanel();
+  } else {
+    openNotifyPanel();
+  }
+});
+
+document.getElementById('notify-panel-close').addEventListener('click', closeNotifyPanel);
+document.getElementById('notify-overlay').addEventListener('click', closeNotifyPanel);
+
+/* =============================================
+   ГЛОБАЛЬНЫЙ ПОИСК ПО АКТАМ
+   ============================================= */
+
+const $globalSearch   = document.getElementById('global-search');
+const $searchDropdown = document.getElementById('global-search-dropdown');
+const $searchClear    = document.getElementById('search-clear');
+
+$globalSearch.addEventListener('input', () => {
+  const q = $globalSearch.value.trim();
+  $searchClear.classList.toggle('hidden', !q);
+  if (!q) {
+    $searchDropdown.classList.remove('active');
+    return;
+  }
+  const ql = q.toLowerCase();
+  const matches = state.acts.filter(a =>
+    (a.act_number  || '').toLowerCase().includes(ql) ||
+    (a.signatory   || '').toLowerCase().includes(ql) ||
+    (a.created_by  || '').toLowerCase().includes(ql) ||
+    (a.description || '').toLowerCase().includes(ql)
+  ).slice(0, 12);
+
+  $searchDropdown.innerHTML = '';
+
+  if (!matches.length) {
+    $searchDropdown.innerHTML = `<div class="search-empty"><i class="fa fa-search"></i> Ничего не найдено</div>`;
+    $searchDropdown.classList.add('active');
+    return;
+  }
+
+  matches.forEach(act => {
+    const item = document.createElement('div');
+    item.className = 'search-result-item';
+    const isSigned = act.status === 'signed';
+    item.innerHTML = `
+      <div class="search-result-left">
+        <span class="search-result-status ${isSigned ? 'chip-signed' : 'chip-created'}">
+          <i class="fa ${isSigned ? 'fa-check-circle' : 'fa-file-pen'}"></i>
+        </span>
+        <div class="search-result-info">
+          <div class="search-result-title">
+            ${act.act_number ? `<strong>${act.act_number}</strong> · ` : ''}
+            ${act.signatory || '<span style="color:var(--clr-muted);font-style:italic">Подписант не указан</span>'}
+          </div>
+          <div class="search-result-meta">
+            <span><i class="fa fa-user"></i> ${act.created_by || '—'}</span>
+            <span><i class="fa fa-calendar"></i> ${toLocale(act.created_date)}</span>
+            ${act.amount ? `<span><i class="fa fa-ruble-sign"></i> ${formatAmount(act.amount)}</span>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="search-result-actions">
+        <button class="btn btn-outline btn-xs" data-detail>
+          <i class="fa fa-eye"></i>
+        </button>
+        ${!isSigned ? `<button class="btn btn-success btn-xs" data-sign>
+          <i class="fa fa-pen-nib"></i>
+        </button>` : ''}
+      </div>
+    `;
+
+    item.querySelector('[data-detail]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearSearch();
+      openDetailModal(act);
+    });
+
+    const signBtn = item.querySelector('[data-sign]');
+    if (signBtn) {
+      signBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearSearch();
+        openSignModalWithAct(act);
+      });
+    }
+
+    // Клик по строке — перейти к дню в календаре
+    item.addEventListener('click', () => {
+      clearSearch();
+      if (act.created_date) {
+        const key = toDateKey(act.created_date);
+        // Переключить на нужный месяц
+        const [y, m] = key.split('-');
+        state.currentYear  = parseInt(y);
+        state.currentMonth = parseInt(m) - 1;
+        // Переключить на вкладку Календарь
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('[data-tab="calendar"]').classList.add('active');
+        document.getElementById('view-calendar').classList.remove('hidden');
+        document.getElementById('view-report').classList.add('hidden');
+        document.getElementById('view-persons').classList.add('hidden');
+        renderCalendar();
+        selectDay(key);
+      }
+    });
+
+    $searchDropdown.appendChild(item);
+  });
+
+  $searchDropdown.classList.add('active');
+});
+
+$globalSearch.addEventListener('blur', () => {
+  setTimeout(() => $searchDropdown.classList.remove('active'), 200);
+});
+
+$globalSearch.addEventListener('focus', () => {
+  if ($globalSearch.value.trim()) $searchDropdown.classList.add('active');
+});
+
+$searchClear.addEventListener('click', clearSearch);
+
+function clearSearch() {
+  $globalSearch.value = '';
+  $searchClear.classList.add('hidden');
+  $searchDropdown.classList.remove('active');
+  $searchDropdown.innerHTML = '';
+}
+
+// ── Инициализация формы входа ────────────────────
+// Вызывается ПОСЛЕ определения всех функций (applyRole, loadActs и т.д.)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initLogin);
+} else {
+  initLogin();
 }
 
