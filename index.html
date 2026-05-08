@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Акты Эксперт Юрист</title>
   <link rel="icon" type="image/png" href="images/logo.png" />
-  <link rel="stylesheet" href="css/style.css?v=6" />
+  <link rel="stylesheet" href="css/style.css?v=8" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -78,8 +79,23 @@
         </button>
       </nav>
 
+      <!-- Глобальный поиск -->
+      <div class="header-search-wrap" id="header-search-wrap">
+        <i class="fa fa-magnifying-glass"></i>
+        <input type="text" id="global-search" placeholder="Поиск по актам..." autocomplete="off" />
+        <button class="search-clear-btn hidden" id="search-clear" title="Очистить">
+          <i class="fa fa-xmark"></i>
+        </button>
+        <div class="global-search-dropdown" id="global-search-dropdown"></div>
+      </div>
+
       <div class="header-actions">
         <div class="header-user-info" id="header-user-info"></div>
+        <!-- Кнопка уведомлений -->
+        <button class="btn btn-ghost btn-notify" id="btn-notify" title="Неподписанные акты">
+          <i class="fa fa-bell"></i>
+          <span class="notify-badge hidden" id="notify-badge">0</span>
+        </button>
         <button class="btn btn-ghost btn-logout" id="btn-logout" title="Выйти">
           <i class="fa fa-right-from-bracket"></i> Выйти
         </button>
@@ -197,6 +213,26 @@
         <button class="btn btn-pdf" id="btn-export-pdf">
           <i class="fa fa-file-pdf"></i> Скачать PDF
         </button>
+      </div>
+
+      <!-- Charts -->
+      <div class="report-charts" id="report-charts">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title"><i class="fa fa-chart-bar"></i> Созданных / Подписанных по дням</span>
+          </div>
+          <div class="chart-card-body" style="height:220px">
+            <canvas id="chart-bar"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title"><i class="fa fa-chart-pie"></i> Статус актов</span>
+          </div>
+          <div class="chart-card-body" style="height:220px">
+            <canvas id="chart-doughnut"></canvas>
+          </div>
+        </div>
       </div>
 
       <!-- Summary cards -->
@@ -492,7 +528,19 @@
     </div>
   </div>
 
+  <!-- ===== ПАНЕЛЬ УВЕДОМЛЕНИЙ ===== -->
+  <div class="notify-panel" id="notify-panel" aria-hidden="true">
+    <div class="notify-panel-header">
+      <h3><i class="fa fa-bell"></i> Ожидают подписания</h3>
+      <button class="close-btn" id="notify-panel-close"><i class="fa fa-xmark"></i></button>
+    </div>
+    <div class="notify-panel-body" id="notify-panel-body">
+      <p class="empty-state">Нет неподписанных актов</p>
+    </div>
+  </div>
+  <div class="notify-overlay" id="notify-overlay"></div>
+
   <div class="toast-container" id="toast-container"></div>
-  <script src="js/app.js?v=8"></script>
+  <script src="js/app.js?v=13"></script>
 </body>
 </html>
